@@ -9,9 +9,9 @@ from readpack.paths import book_dir
 
 _EPUB_CSS = """\
 body {
-    font-family: Georgia, "DejaVu Serif", serif;
+    font-family: Bookerly, Literata, "Charis SIL", Georgia, serif;
     font-size: 1em;
-    line-height: 1.75em;
+    line-height: 1.65em;
 }
 p {
     margin: 0.7em 0;
@@ -19,15 +19,15 @@ p {
     hyphens: auto;
 }
 h1, h2, h3, h4, h5, h6 {
-    font-family: Georgia, "DejaVu Serif", serif;
-    line-height: 1.3em;
+    font-family: Bookerly, Literata, "Charis SIL", Georgia, serif;
+    line-height: 1.25em;
     page-break-after: avoid;
 }
 h1 { font-size: 1.8em; margin-bottom: 0.4em; }
 h2 { font-size: 1.4em; }
 h3 { font-size: 1.2em; }
 code {
-    font-family: "DejaVu Sans Mono", "Courier New", monospace;
+    font-family: "Fira Code", "Cascadia Mono", "DejaVu Sans Mono", monospace;
     font-size: 0.85em;
     background-color: #f4f4f4;
     padding: 0.1em 0.3em;
