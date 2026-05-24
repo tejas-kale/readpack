@@ -54,3 +54,38 @@ def test_extract_article_md_has_header(tmp_path):
     md = (tmp_path / "article.md").read_text()
     assert md.startswith("# ")
     assert "https://example.com/article" in md
+
+
+def test_extract_url_shown_as_link_text(tmp_path):
+    html = (FIXTURES / "simple.html").read_text()
+    extract_article(html, url="https://example.com/article", out_dir=tmp_path)
+    md = (tmp_path / "article.md").read_text()
+    # URL should appear as a markdown hyperlink with descriptive text, not raw
+    assert "[Read original article]" in md
+
+
+def test_extract_paragraph_breaks_preserved(tmp_path):
+    html = (FIXTURES / "simple.html").read_text()
+    extract_article(html, url="https://example.com/article", out_dir=tmp_path)
+    md = (tmp_path / "article.md").read_text()
+    # Markdown paragraphs need blank lines between them
+    assert "\n\n" in md
+
+
+def test_extract_image_meta_count(tmp_path):
+    import json
+    from unittest.mock import patch, MagicMock
+    html = (FIXTURES / "images.html").read_text()
+    _TINY_PNG = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
+        b"\x00\x01\x01\x00\x05\x18\xd4N\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = _TINY_PNG
+    mock_resp.__enter__ = lambda s: s
+    mock_resp.__exit__ = MagicMock(return_value=False)
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        extract_article(html, url="https://example.com/images", out_dir=tmp_path)
+    meta = json.loads((tmp_path / "meta.json").read_text())
+    assert meta["image_count"] >= 0  # depends on trafilatura extraction

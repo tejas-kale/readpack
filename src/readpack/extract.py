@@ -6,6 +6,9 @@ from pathlib import Path
 import trafilatura
 from bs4 import BeautifulSoup
 
+from readpack.assets import process_images
+
+
 
 @dataclass
 class ArticlePackage:
@@ -42,7 +45,7 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
     body_text = meta.get("text") or ""
     word_count = len(body_text.split()) if body_text else 0
 
-    body_html = trafilatura.extract(
+    body_html_raw = trafilatura.extract(
         html,
         url=url,
         output_format="html",
@@ -51,10 +54,23 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
         favor_precision=True,
     ) or f"<p>{body_text}</p>"
 
+    body_md_raw = trafilatura.extract(
+        html,
+        url=url,
+        output_format="markdown",
+        include_tables=True,
+        include_comments=False,
+        favor_precision=True,
+    ) or body_text
+
+    body_html, body_md, image_assets = process_images(
+        body_html_raw, body_md_raw, url, out_dir
+    )
+
     clean_html = _build_article_html(title, author, published_at, url, body_html)
     (out_dir / "article.html").write_text(clean_html)
 
-    md = _build_article_md(title, author, published_at, url, body_text)
+    md = _build_article_md(title, author, published_at, url, body_md)
     (out_dir / "article.md").write_text(md)
 
     pkg = ArticlePackage(
@@ -63,6 +79,7 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
         author=author,
         published_at=published_at,
         word_count=word_count,
+        assets=image_assets,
     )
 
     meta_data = {
@@ -75,8 +92,8 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
         "extracted_at": _now(),
         "extractor": pkg.extractor,
         "word_count": word_count,
-        "image_count": 0,
-        "assets": [],
+        "image_count": len(image_assets),
+        "assets": image_assets,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta_data, indent=2))
 
@@ -95,7 +112,7 @@ def _build_article_html(title: str, author: str, published_at: str, url: str, bo
         parts.append(f"<p>By {author}</p>")
     if published_at:
         parts.append(f"<p>Published: {published_at}</p>")
-    parts.append(f'<p>URL: <a href="{url}">{url}</a></p>')
+    parts.append(f'<p><a href="{url}">Read original article</a></p>')
     parts.append(body)
     return "\n".join(parts)
 
@@ -106,7 +123,7 @@ def _build_article_md(title: str, author: str, published_at: str, url: str, body
         lines.append(f"By {author}  ")
     if published_at:
         lines.append(f"Published: {published_at}  ")
-    lines.append(f"URL: <{url}>")
+    lines.append(f"[Read original article]({url})")
     lines.append("")
     lines.append(body)
     return "\n".join(lines)

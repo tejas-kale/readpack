@@ -5,10 +5,12 @@ from pathlib import Path
 import click
 
 from readpack.build import build_epub, MissingPandoc
+from readpack.config import ConfigError, init_config, load_config
 from readpack.extract import extract_article
 from readpack.fetch import fetch_html
 from readpack.models import Book, ArticleRef
 from readpack.paths import store_root, config_dir, slugify
+from readpack.send import send_to_kindle
 from readpack.store import load_book, save_book, book_exists, has_url, next_article_id, list_books
 
 
@@ -82,9 +84,19 @@ def cmd_show(ctx: click.Context, book: str) -> None:
 
 
 @main.command("config")
+@click.option("--init", "do_init", is_flag=True, help="Create config template")
 @click.pass_context
-def cmd_config(ctx: click.Context) -> None:
+def cmd_config(ctx: click.Context, do_init: bool) -> None:
     store: Path = ctx.obj["store"]
+    if do_init:
+        cdir = config_dir()
+        try:
+            path = init_config(cdir)
+            click.echo(f"Config created: {path}")
+            click.echo("Edit it to add your Kindle and SMTP settings.")
+        except ConfigError as e:
+            raise click.ClickException(str(e)) from e
+        return
     click.echo(f"store:      {store}")
     click.echo(f"config_dir: {config_dir()}")
 
@@ -120,5 +132,32 @@ def cmd_build(ctx: click.Context, book: str, force: bool) -> None:
         click.echo(f"Built: {epub_path}")
     except MissingPandoc as e:
         raise click.ClickException(str(e)) from e
-    except RuntimeError as e:
+    except RuntimeError:
         sys.exit(3)
+
+
+@main.command("send")
+@click.argument("book")
+@click.option("--force-build", is_flag=True, help="Rebuild ePUB before sending")
+@click.pass_context
+def cmd_send(ctx: click.Context, book: str, force_build: bool) -> None:
+    store: Path = ctx.obj["store"]
+    if not book_exists(store, book):
+        raise click.ClickException(f"Book not found: {book!r}")
+    b = load_book(store, book)
+    try:
+        cfg = load_config(config_dir())
+    except ConfigError as e:
+        raise click.ClickException(str(e)) from e
+    try:
+        epub_path = build_epub(store, b, force=force_build)
+    except MissingPandoc as e:
+        raise click.ClickException(str(e)) from e
+    except RuntimeError as e:
+        raise click.ClickException(str(e)) from e
+    try:
+        send_to_kindle(cfg, epub_path)
+        click.echo(f"Sent: {epub_path.name} → {cfg.kindle.address}")
+        click.echo("SMTP accepted the message. Kindle delivery may take a few minutes.")
+    except ConfigError as e:
+        raise click.ClickException(str(e)) from e
