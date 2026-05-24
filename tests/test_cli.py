@@ -86,3 +86,62 @@ def test_add_with_force_allows_duplicate(tmp_path):
         mock_add.return_value = None
         code, out = run(["add", "--force", "My Book", "https://example.com/article"], tmp_path)
     mock_add.assert_called_once()
+
+
+def test_config_init_creates_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    code, out = run(["config", "--init"], tmp_path)
+    assert code == 0
+    assert "Config created" in out
+
+
+def test_config_init_errors_if_exists(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    run(["config", "--init"], tmp_path)
+    code, out = run(["config", "--init"], tmp_path)
+    assert code != 0
+
+
+def test_send_missing_book(tmp_path):
+    code, out = run(["send", "Ghost Book"], tmp_path)
+    assert code != 0
+
+
+def test_send_no_config(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-config"))
+    book = Book(id="my-book", title="My Book")
+    save_book(tmp_path, book)
+    code, out = run(["send", "My Book"], tmp_path)
+    assert code != 0
+    assert "config" in out.lower()
+
+
+def test_send_calls_smtp(tmp_path, monkeypatch):
+    from readpack.config import Config, KindleConfig, EmailConfig
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    book = Book(id="my-book", title="My Book")
+    save_book(tmp_path, book)
+
+    fake_epub = tmp_path / "books" / "my-book" / "build" / "my-book.epub"
+    fake_epub.parent.mkdir(parents=True, exist_ok=True)
+    fake_epub.write_bytes(b"fake epub")
+
+    fake_cfg = Config(
+        kindle=KindleConfig(address="k@kindle.com"),
+        email=EmailConfig(
+            sender="me@example.com",
+            smtp_host="smtp.example.com",
+            password_command="echo pass",
+        ),
+    )
+    smtp_instance = MagicMock()
+    with patch("readpack.cli.load_config", return_value=fake_cfg), \
+         patch("readpack.cli.build_epub", return_value=fake_epub), \
+         patch("smtplib.SMTP") as mock_smtp:
+        mock_smtp.return_value.__enter__ = MagicMock(return_value=smtp_instance)
+        mock_smtp.return_value.__exit__ = MagicMock(return_value=False)
+        code, out = run(["send", "My Book"], tmp_path)
+    assert code == 0
+    assert "Sent" in out
