@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,6 +67,7 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
     body_html, body_md, image_assets = process_images(
         body_html_raw, body_md_raw, url, out_dir
     )
+    body_md = _normalise_markdown(body_md)
 
     clean_html = _build_article_html(title, author, published_at, url, body_html)
     (out_dir / "article.html").write_text(clean_html)
@@ -104,6 +106,11 @@ def _extract_title_fallback(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
     tag = soup.find("title") or soup.find("h1")
     return tag.get_text(strip=True) if tag else "Untitled"
+
+
+def _normalise_markdown(md: str) -> str:
+    md = re.sub(r"(`[^`\n]+`)\n\n([,.;:!?])", r"\1\2", md)
+    return re.sub(r"(`[^`\n]+`)\n\n(['’]s)", r"\1\2", md)
 
 
 def _build_article_html(title: str, author: str, published_at: str, url: str, body: str) -> str:

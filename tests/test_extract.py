@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from readpack.extract import extract_article, ArticlePackage
+from readpack.extract import extract_article, ArticlePackage, _normalise_markdown
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -70,6 +70,19 @@ def test_extract_paragraph_breaks_preserved(tmp_path):
     md = (tmp_path / "article.md").read_text()
     # Markdown paragraphs need blank lines between them
     assert "\n\n" in md
+
+
+def test_normalise_markdown_inline_code_punctuation():
+    assert _normalise_markdown("called `tsk`\n\n,\na dictionary") == "called `tsk`,\na dictionary"
+
+
+def test_normalise_markdown_inline_code_possessive():
+    assert _normalise_markdown("`fst`\n\n’s weakness") == "`fst`’s weakness"
+
+
+def test_normalise_markdown_preserves_real_paragraphs():
+    md = "Use `tsk`.\n\nNext paragraph."
+    assert _normalise_markdown(md) == md
 
 
 def test_extract_image_meta_count(tmp_path):
