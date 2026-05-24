@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from readpack.assets import process_images
 
 
+
 @dataclass
 class ArticlePackage:
     url: str
