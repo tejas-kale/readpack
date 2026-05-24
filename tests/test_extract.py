@@ -88,6 +88,17 @@ def test_normalise_markdown_spaces_glued_inline_code():
     assert _normalise_markdown("earlier`fzf`\nprototype called`finstem`") == "earlier `fzf`\nprototype called `finstem`"
 
 
+def test_normalise_markdown_blockquotes_from_html():
+    html = "<blockquote><p>quoted text</p></blockquote>"
+    assert _normalise_markdown("before\n\nquoted\ntext\n\nafter", html) == "before\n\n> quoted text\n\nafter"
+
+
+def test_normalise_markdown_footnotes_from_html():
+    html = "<p>Body.<sup id='fnref:1'><a href='#fn:1'>1</a></sup></p><ol><li id='fn:1'><p><code>tsk</code> note <a class='footnote-backref' href='#fnref:1'>↩︎</a></p></li></ol>"
+    md = _normalise_markdown("Body.1\n\n`tsk` note ↩︎", html)
+    assert md == "Body.[^1]\n\n[^1]: `tsk` note"
+
+
 def test_normalise_markdown_preserves_real_paragraphs():
     md = "Use `tsk`.\n\nNext paragraph."
     assert _normalise_markdown(md) == md

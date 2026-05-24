@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import trafilatura
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 
 from readpack.assets import process_images
 
@@ -67,8 +67,7 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
     body_html, body_md, image_assets = process_images(
         body_html_raw, body_md_raw, url, out_dir
     )
-    body_md = _normalise_markdown(body_md)
-
+    body_md = _normalise_markdown(body_md, html)
     clean_html = _build_article_html(title, author, published_at, url, body_html)
     (out_dir / "article.html").write_text(clean_html)
 
@@ -108,12 +107,75 @@ def _extract_title_fallback(html: str) -> str:
     return tag.get_text(strip=True) if tag else "Untitled"
 
 
-def _normalise_markdown(md: str) -> str:
+def _normalise_markdown(md: str, html: str = "") -> str:
     md = re.sub(r"(`[^`\n]+`)\n\n([,.;:!?])", r"\1\2", md)
     md = re.sub(r"(`[^`\n]+`)\n\n(['’]s)", r"\1\2", md)
     md = re.sub(r"(`[^`\n]+`)\n\n([a-z])", r"\1 \2", md)
     md = re.sub(r"(?<=\w)(`(?=[A-Za-z0-9_.-])[^`\n]+`)", r" \1", md)
-    return re.sub(r"(`(?=[A-Za-z0-9_.-])[^`\n]+`)(?=\w)", r"\1 ", md)
+    md = re.sub(r"(`(?=[A-Za-z0-9_.-])[^`\n]+`)(?=\w)", r"\1 ", md)
+    if html:
+        md = _normalise_blockquotes(md, html)
+        md = _normalise_footnotes(md, html)
+    return md
+
+
+def _normalise_blockquotes(md: str, html: str) -> str:
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup.find_all("blockquote"):
+        text = " ".join(tag.get_text(" ", strip=True).split())
+        if not text:
+            continue
+        pattern = re.escape(text).replace(r"\ ", r"\s+")
+        md = re.sub(pattern, f"> {text}", md, count=1)
+    return md
+
+
+def _normalise_footnotes(md: str, html: str) -> str:
+    soup = BeautifulSoup(html, "lxml")
+    items = soup.select('li[id^="fn:"]')
+    if not items:
+        return md
+    for item in items:
+        n = item["id"].split(":", 1)[1]
+        md = re.sub(rf"(?<=[.!?]){re.escape(n)}(?=\s|$)", f"[^{n}]", md, count=1)
+    start = _footnote_start(md, items[0])
+    if start != -1:
+        md = md[:start].rstrip()
+    notes = []
+    for item in items:
+        n = item["id"].split(":", 1)[1]
+        for tag in item.select("a.footnote-backref"):
+            tag.decompose()
+        text = _html_to_md(item)
+        text = re.sub(r"\s+", " ", text.replace("\xa0", " ")).strip()
+        notes.append(f"[^{n}]: {text}")
+    return f"{md}\n\n" + "\n\n".join(notes)
+
+
+def _footnote_start(md: str, item) -> int:
+    words = re.findall(r"\w+", item.get_text(" ", strip=True))[:4]
+    if not words:
+        return -1
+    parts = [rf"`?{re.escape(words[0])}`?"] + [re.escape(w) for w in words[1:]]
+    m = re.search(r"\s+".join(parts), md)
+    return md.rfind("\n\n", 0, m.start()) if m else -1
+
+
+def _html_to_md(node) -> str:
+    if isinstance(node, NavigableString):
+        return str(node)
+    text = "".join(_html_to_md(c) for c in node.children)
+    if node.name == "code":
+        return f"`{text}`"
+    if node.name in {"em", "i"}:
+        return f"*{text}*"
+    if node.name in {"strong", "b"}:
+        return f"**{text}**"
+    if node.name == "a" and node.get("href"):
+        return f"[{text}]({node['href']})"
+    if node.name == "br":
+        return "\n"
+    return text
 
 
 def _build_article_html(title: str, author: str, published_at: str, url: str, body: str) -> str:
