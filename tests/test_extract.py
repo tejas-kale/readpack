@@ -1,8 +1,13 @@
 import pytest
 from pathlib import Path
-from readpack.extract import extract_article, ArticlePackage, _normalise_markdown
+from readpack.extract import extract_article, ArticlePackage, ExtractionError, _normalise_markdown
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+def test_extract_rejects_empty_content(tmp_path):
+    with pytest.raises(ExtractionError):
+        extract_article("<html><title>No article</title></html>", url="https://example.com/empty", out_dir=tmp_path)
 
 
 def test_extract_returns_package(tmp_path):

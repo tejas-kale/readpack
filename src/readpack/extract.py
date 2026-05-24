@@ -11,6 +11,10 @@ from readpack.assets import process_images
 
 
 
+class ExtractionError(RuntimeError):
+    pass
+
+
 @dataclass
 class ArticlePackage:
     url: str
@@ -45,6 +49,9 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
     published_at = meta.get("date") or ""
     body_text = meta.get("text") or ""
     word_count = len(body_text.split()) if body_text else 0
+
+    if not body_text.strip():
+        raise ExtractionError("could not extract article content")
 
     body_html_raw = trafilatura.extract(
         html,
