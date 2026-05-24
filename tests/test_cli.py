@@ -1,22 +1,18 @@
-import json
 import pytest
 from pathlib import Path
 from unittest.mock import patch
+from click.testing import CliRunner
+
 from readpack.cli import main
 from readpack.models import Book, ArticleRef
 from readpack.store import save_book
 
+_runner = CliRunner()
+
 
 def run(args: list[str], store: Path) -> tuple[int, str]:
-    import io, contextlib
-    buf = io.StringIO()
-    code = 0
-    try:
-        with contextlib.redirect_stdout(buf):
-            main(["--store", str(store)] + args)
-    except SystemExit as e:
-        code = int(e.code) if e.code is not None else 0
-    return code, buf.getvalue()
+    result = _runner.invoke(main, ["--store", str(store)] + args)
+    return result.exit_code, result.output
 
 
 def test_help(tmp_path):

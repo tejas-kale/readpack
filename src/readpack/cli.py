@@ -1,11 +1,15 @@
-import argparse
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import click
+
+from readpack.build import build_epub, MissingPandoc
+from readpack.extract import extract_article
+from readpack.fetch import fetch_html
+from readpack.models import Book, ArticleRef
 from readpack.paths import store_root, config_dir, slugify
 from readpack.store import load_book, save_book, book_exists, has_url, next_article_id, list_books
-from readpack.models import Book, ArticleRef
 
 
 def _now() -> str:
@@ -13,10 +17,6 @@ def _now() -> str:
 
 
 def fetch_and_add(store: Path, title: str, url: str) -> None:
-    from readpack.fetch import fetch_html
-    from readpack.extract import extract_article
-    from readpack.paths import slugify
-
     if book_exists(store, title):
         book = load_book(store, title)
     else:
@@ -42,113 +42,83 @@ def fetch_and_add(store: Path, title: str, url: str) -> None:
     book.articles.append(ref)
     book.updated_at = _now()
     save_book(store, book)
-    print(f"Added: {pkg.title}")
-    print(f"  Words: {pkg.word_count}")
-    print(f"  Path:  {art_dir}")
+    click.echo(f"Added: {pkg.title}")
+    click.echo(f"  Words: {pkg.word_count}")
+    click.echo(f"  Path:  {art_dir}")
 
 
-def cmd_list(store: Path, _args) -> int:
+@click.group()
+@click.option("--store", "store_path", default=None, metavar="PATH", help="Override store path")
+@click.pass_context
+def main(ctx: click.Context, store_path: str | None) -> None:
+    ctx.ensure_object(dict)
+    ctx.obj["store"] = store_root(override=Path(store_path) if store_path else None)
+
+
+@main.command("list")
+@click.pass_context
+def cmd_list(ctx: click.Context) -> None:
+    store: Path = ctx.obj["store"]
     books = list_books(store)
     if not books:
-        print("No books.")
-        return 0
+        click.echo("No books.")
+        return
     for b in books:
-        print(b)
-    return 0
+        click.echo(b)
 
 
-def cmd_show(store: Path, args) -> int:
-    if not book_exists(store, args.book):
-        print(f"Book not found: {args.book!r}", file=sys.stderr)
-        return 1
-    book = load_book(store, args.book)
-    print(f"Book: {book.title} ({book.id})")
-    print(f"  Articles: {len(book.articles)}")
-    for a in book.articles:
-        print(f"  [{a.status}] {a.id}: {a.title or a.url}")
-    return 0
+@main.command("show")
+@click.argument("book")
+@click.pass_context
+def cmd_show(ctx: click.Context, book: str) -> None:
+    store: Path = ctx.obj["store"]
+    if not book_exists(store, book):
+        raise click.ClickException(f"Book not found: {book!r}")
+    b = load_book(store, book)
+    click.echo(f"Book: {b.title} ({b.id})")
+    click.echo(f"  Articles: {len(b.articles)}")
+    for a in b.articles:
+        click.echo(f"  [{a.status}] {a.id}: {a.title or a.url}")
 
 
-def cmd_config(store: Path, _args) -> int:
-    print(f"store:      {store}")
-    print(f"config_dir: {config_dir()}")
-    return 0
+@main.command("config")
+@click.pass_context
+def cmd_config(ctx: click.Context) -> None:
+    store: Path = ctx.obj["store"]
+    click.echo(f"store:      {store}")
+    click.echo(f"config_dir: {config_dir()}")
 
 
-def cmd_add(store: Path, args) -> int:
-    title = args.book
-    url = args.url
-
-    if book_exists(store, title):
-        book = load_book(store, title)
-        if has_url(book, url) and not args.force:
-            print(f"URL already in book. Use --force to re-add.", file=sys.stderr)
-            return 1
-
+@main.command("add")
+@click.argument("book")
+@click.argument("url")
+@click.option("--force", is_flag=True, help="Re-add duplicate URL")
+@click.pass_context
+def cmd_add(ctx: click.Context, book: str, url: str, force: bool) -> None:
+    store: Path = ctx.obj["store"]
+    if book_exists(store, book):
+        b = load_book(store, book)
+        if has_url(b, url) and not force:
+            raise click.ClickException("URL already in book. Use --force to re-add.")
     try:
-        fetch_and_add(store, title, url)
+        fetch_and_add(store, book, url)
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 2
-    return 0
+        raise click.ClickException(str(e)) from e
 
 
-def cmd_build(store: Path, args) -> int:
-    from readpack.build import build_epub
-    if not book_exists(store, args.book):
-        print(f"Book not found: {args.book!r}", file=sys.stderr)
-        return 1
-    book = load_book(store, args.book)
+@main.command("build")
+@click.argument("book")
+@click.option("--force", is_flag=True, help="Rebuild even if up to date")
+@click.pass_context
+def cmd_build(ctx: click.Context, book: str, force: bool) -> None:
+    store: Path = ctx.obj["store"]
+    if not book_exists(store, book):
+        raise click.ClickException(f"Book not found: {book!r}")
+    b = load_book(store, book)
     try:
-        epub_path = build_epub(store, book, force=getattr(args, "force", False))
-        print(f"Built: {epub_path}")
+        epub_path = build_epub(store, b, force=force)
+        click.echo(f"Built: {epub_path}")
+    except MissingPandoc as e:
+        raise click.ClickException(str(e)) from e
     except RuntimeError as e:
-        print(f"Build error: {e}", file=sys.stderr)
-        return 3
-    return 0
-
-
-def main(argv=None) -> None:
-    parser = argparse.ArgumentParser(prog="readpack", description="Build ePUB books from web articles.")
-    parser.add_argument("--store", metavar="PATH", help="Override store path")
-
-    sub = parser.add_subparsers(dest="command")
-
-    sub.add_parser("list", help="List books")
-
-    p_show = sub.add_parser("show", help="Show book details")
-    p_show.add_argument("book", help="Book title")
-
-    sub.add_parser("config", help="Show config paths")
-
-    p_add = sub.add_parser("add", help="Add article to book")
-    p_add.add_argument("book", help="Book title")
-    p_add.add_argument("url", help="Article URL")
-    p_add.add_argument("--force", action="store_true", help="Re-add duplicate URL")
-
-    p_build = sub.add_parser("build", help="Build ePUB")
-    p_build.add_argument("book", help="Book title")
-    p_build.add_argument("--force", action="store_true", help="Rebuild even if up to date")
-
-    args = parser.parse_args(argv)
-
-    store = store_root(override=Path(args.store) if args.store else None)
-
-    handlers = {
-        "list": cmd_list,
-        "show": cmd_show,
-        "config": cmd_config,
-        "add": cmd_add,
-        "build": cmd_build,
-    }
-
-    if args.command is None:
-        parser.print_help()
-        raise SystemExit(0)
-
-    fn = handlers.get(args.command)
-    if fn is None:
-        parser.print_help()
-        raise SystemExit(1)
-
-    raise SystemExit(fn(store, args))
+        sys.exit(3)
