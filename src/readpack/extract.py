@@ -110,7 +110,10 @@ def _extract_title_fallback(html: str) -> str:
 
 def _normalise_markdown(md: str) -> str:
     md = re.sub(r"(`[^`\n]+`)\n\n([,.;:!?])", r"\1\2", md)
-    return re.sub(r"(`[^`\n]+`)\n\n(['’]s)", r"\1\2", md)
+    md = re.sub(r"(`[^`\n]+`)\n\n(['’]s)", r"\1\2", md)
+    md = re.sub(r"(`[^`\n]+`)\n\n([a-z])", r"\1 \2", md)
+    md = re.sub(r"(?<=\w)(`(?=[A-Za-z0-9_.-])[^`\n]+`)", r" \1", md)
+    return re.sub(r"(`(?=[A-Za-z0-9_.-])[^`\n]+`)(?=\w)", r"\1 ", md)
 
 
 def _build_article_html(title: str, author: str, published_at: str, url: str, body: str) -> str:

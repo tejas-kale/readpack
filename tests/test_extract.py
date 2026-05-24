@@ -80,6 +80,14 @@ def test_normalise_markdown_inline_code_possessive():
     assert _normalise_markdown("`fst`\n\n’s weakness") == "`fst`’s weakness"
 
 
+def test_normalise_markdown_inline_code_lowercase_continuation():
+    assert _normalise_markdown("in the world of `fst`\n\ncrate users") == "in the world of `fst` crate users"
+
+
+def test_normalise_markdown_spaces_glued_inline_code():
+    assert _normalise_markdown("earlier`fzf`\nprototype called`finstem`") == "earlier `fzf`\nprototype called `finstem`"
+
+
 def test_normalise_markdown_preserves_real_paragraphs():
     md = "Use `tsk`.\n\nNext paragraph."
     assert _normalise_markdown(md) == md
