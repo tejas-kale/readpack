@@ -3,6 +3,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from readpack.cover import generate_cover
 from readpack.models import Book
 from readpack.paths import book_dir
 
@@ -81,6 +82,8 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
     md_path = build_dir / f"{book.id}.md"
     md_path.write_text(combined_md)
 
+    cover_path = generate_cover(book.title, build_dir, force=force)
+
     cmd = [
         "pandoc",
         str(md_path),
@@ -91,6 +94,7 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
         "--metadata=author:Tejas Kale",
         "--metadata=lang:en",
         "--css", str(css_path),
+        "--epub-cover-image", str(cover_path),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
