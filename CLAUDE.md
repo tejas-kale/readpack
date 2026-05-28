@@ -9,6 +9,7 @@ Python CLI: web articles → ePUB → Kindle.
 - **Terse code**: shortest correct solution. No abstraction tax, no premature helpers.
 - **No try-catch**: let errors propagate naturally. Catch only at CLI boundaries (Click handles it).
 - **Emoji logs**: all `click.echo` lines get an emoji prefix (📦 ✅ ❌ 📖 📬 etc.).
+- **README**: keep `README.md` up to date with every user-facing change (new flags, dependencies, behaviour).
 
 ## Stack
 
