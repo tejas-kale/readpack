@@ -10,7 +10,7 @@ uv tool install git+https://github.com/tejas-kale/readpack
 
 Requires [pandoc](https://pandoc.org/installing.html) for `build`.
 
-Requires an `OPENROUTER_API_KEY` environment variable for cover image generation (uses DALL-E 3 via [OpenRouter](https://openrouter.ai)).
+Requires an `OPENROUTER_API_KEY` environment variable for cover image generation (uses `openai/gpt-5.4-image-2` via [OpenRouter](https://openrouter.ai)).
 
 ## Usage
 
@@ -30,7 +30,7 @@ readpack config --init
 - Stores `source.html`, `article.html`, `article.md`, and `meta.json`.
 - Downloads article images when possible.
 - Normalises Markdown for cleaner EPUB output, including inline code, blockquotes, and footnotes.
-- Generates an AI cover image (DALL-E 3 via OpenRouter) on first `build`; cached and reused unless `--force`.
+- Generates an AI cover image (`openai/gpt-5.4-image-2` via OpenRouter) on first `build`; cached and reused unless `--force`.
 - Builds styled EPUBs with pandoc.
 - Sends EPUBs to Kindle over SMTP when configured.
 

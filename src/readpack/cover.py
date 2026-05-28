@@ -5,7 +5,7 @@ import urllib.request
 from pathlib import Path
 
 _URL = "https://openrouter.ai/api/v1/images/generations"
-_MODEL = "openai/dall-e-3"
+_MODEL = "openai/gpt-5.4-image-2"
 
 
 def _prompt(title: str) -> str:
