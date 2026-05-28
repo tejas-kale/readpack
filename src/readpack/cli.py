@@ -121,14 +121,15 @@ def cmd_add(ctx: click.Context, book: str, url: str, force: bool) -> None:
 @main.command("build")
 @click.argument("book")
 @click.option("--force", is_flag=True, help="Rebuild even if up to date")
+@click.option("--force-cover", is_flag=True, help="Regenerate the cover image")
 @click.pass_context
-def cmd_build(ctx: click.Context, book: str, force: bool) -> None:
+def cmd_build(ctx: click.Context, book: str, force: bool, force_cover: bool) -> None:
     store: Path = ctx.obj["store"]
     if not book_exists(store, book):
         raise click.ClickException(f"Book not found: {book!r}")
     b = load_book(store, book)
     try:
-        build_epub(store, b, force=force, log=click.echo)
+        build_epub(store, b, force=force, force_cover=force_cover, log=click.echo)
     except MissingPandoc as e:
         raise click.ClickException(str(e)) from e
     except RuntimeError:
@@ -138,8 +139,9 @@ def cmd_build(ctx: click.Context, book: str, force: bool) -> None:
 @main.command("send")
 @click.argument("book")
 @click.option("--force-build", is_flag=True, help="Rebuild ePUB before sending")
+@click.option("--force-cover", is_flag=True, help="Regenerate the cover image")
 @click.pass_context
-def cmd_send(ctx: click.Context, book: str, force_build: bool) -> None:
+def cmd_send(ctx: click.Context, book: str, force_build: bool, force_cover: bool) -> None:
     store: Path = ctx.obj["store"]
     if not book_exists(store, book):
         raise click.ClickException(f"Book not found: {book!r}")
@@ -149,7 +151,7 @@ def cmd_send(ctx: click.Context, book: str, force_build: bool) -> None:
     except ConfigError as e:
         raise click.ClickException(str(e)) from e
     try:
-        epub_path = build_epub(store, b, force=force_build, log=click.echo)
+        epub_path = build_epub(store, b, force=force_build, force_cover=force_cover, log=click.echo)
     except MissingPandoc as e:
         raise click.ClickException(str(e)) from e
     except RuntimeError as e:

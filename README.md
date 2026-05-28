@@ -30,7 +30,7 @@ readpack config --init
 - Stores `source.html`, `article.html`, `article.md`, and `meta.json`.
 - Downloads article images when possible.
 - Normalises Markdown for cleaner EPUB output, including inline code, blockquotes, and footnotes.
-- Generates an AI cover image (`openai/gpt-5.4-image-2` via OpenRouter) on first `build`; cached and reused unless `--force`.
+- Generates an AI cover image (`openai/gpt-5.4-image-2` via OpenRouter) on first `build`; cached and reused unless `--force-cover`.
 - Shows emoji-prefixed progress logs while building, including cover generation and pandoc steps.
 - Builds styled EPUBs with pandoc.
 - Sends EPUBs to Kindle over SMTP when configured.
@@ -56,8 +56,10 @@ readpack list
 readpack show BOOK
 readpack build BOOK
 readpack build --force BOOK         # rebuild existing EPUB
+readpack build --force-cover BOOK   # regenerate cover image
 readpack send BOOK
 readpack send --force-build BOOK
+readpack send --force-cover BOOK
 readpack config
 readpack config --init
 ```

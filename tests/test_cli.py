@@ -109,6 +109,17 @@ def test_config_init_errors_if_exists(tmp_path, monkeypatch):
     assert code != 0
 
 
+def test_build_passes_force_cover(tmp_path):
+    book = Book(id="my-book", title="My Book")
+    save_book(tmp_path, book)
+    fake_epub = tmp_path / "books" / "my-book" / "build" / "my-book.epub"
+    with patch("readpack.cli.build_epub", return_value=fake_epub) as mock:
+        code, out = run(["build", "--force", "--force-cover", "My Book"], tmp_path)
+    assert code == 0
+    assert mock.call_args.kwargs["force"] is True
+    assert mock.call_args.kwargs["force_cover"] is True
+
+
 def test_send_missing_book(tmp_path):
     code, out = run(["send", "Ghost Book"], tmp_path)
     assert code != 0

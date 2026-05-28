@@ -61,6 +61,26 @@ def test_build_logs_progress(tmp_path, monkeypatch):
     ]
 
 
+def test_force_rebuild_reuses_cover(tmp_path, monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/pandoc")
+    book = _make_book_with_article(tmp_path)
+    with patch("readpack.build.generate_cover") as mock_cov, \
+         patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")):
+        mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
+        build_epub(tmp_path, book, force=True)
+    assert mock_cov.call_args.kwargs["force"] is False
+
+
+def test_force_cover_regenerates_cover(tmp_path, monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/pandoc")
+    book = _make_book_with_article(tmp_path)
+    with patch("readpack.build.generate_cover") as mock_cov, \
+         patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")):
+        mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
+        build_epub(tmp_path, book, force=True, force_cover=True)
+    assert mock_cov.call_args.kwargs["force"] is True
+
+
 @pytest.mark.skipif(not PANDOC_AVAILABLE, reason="pandoc not installed")
 def test_build_creates_epub(tmp_path):
     book = _make_book_with_article(tmp_path)

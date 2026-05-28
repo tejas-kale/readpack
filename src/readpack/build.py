@@ -62,7 +62,7 @@ class MissingPandoc(RuntimeError):
     pass
 
 
-def build_epub(store: Path, book: Book, force: bool = False, log: Callable[[str], None] | None = None) -> Path:
+def build_epub(store: Path, book: Book, force: bool = False, force_cover: bool = False, log: Callable[[str], None] | None = None) -> Path:
     if not shutil.which("pandoc"):
         raise MissingPandoc(
             "pandoc not found. Install it from https://pandoc.org/installing.html"
@@ -91,7 +91,7 @@ def build_epub(store: Path, book: Book, force: bool = False, log: Callable[[str]
 
     if log:
         log("🎨 Generating cover image")
-    cover_path = generate_cover(book.title, build_dir, force=force)
+    cover_path = generate_cover(book.title, build_dir, force=force_cover)
 
     if log:
         log("🔨 Running pandoc")
