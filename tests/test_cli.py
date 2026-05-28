@@ -20,6 +20,13 @@ def test_help(tmp_path):
     assert code == 0
 
 
+def test_cli_echoes_use_emojis(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    code, out = run(["config", "--init"], tmp_path)
+    assert code == 0
+    assert all(line[0] in "📦✅❌📖📬🔨📝🎨⚙️" for line in out.splitlines())
+
+
 def test_list_empty(tmp_path):
     code, out = run(["list"], tmp_path)
     assert code == 0

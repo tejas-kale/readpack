@@ -8,7 +8,7 @@ Python CLI that turns web articles into ePUB books and delivers them to Kindle.
 - **Atomic commits**: one change per commit; include the test and implementation together.
 - **Terse**: fewest lines that are still clear. Resist extracting helpers that are only used once.
 - **No try-catch**: raise and let it fail. Only Click's `ClickException` at command boundaries.
-- **Emoji in logs**: every `click.echo` call uses an emoji (📦 ✅ ❌ 📖 📬 🔨 etc.).
+- **Emoji in logs**: every `click.echo` call starts with an emoji (📦 ✅ ❌ 📖 📬 🔨 etc.). Add informative progress logs around slow steps.
 - **README**: update `README.md` whenever you add or change user-facing behaviour, flags, or dependencies.
 
 ## Layout

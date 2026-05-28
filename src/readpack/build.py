@@ -1,6 +1,7 @@
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from readpack.cover import generate_cover
@@ -61,7 +62,7 @@ class MissingPandoc(RuntimeError):
     pass
 
 
-def build_epub(store: Path, book: Book, force: bool = False) -> Path:
+def build_epub(store: Path, book: Book, force: bool = False, log: Callable[[str], None] | None = None) -> Path:
     if not shutil.which("pandoc"):
         raise MissingPandoc(
             "pandoc not found. Install it from https://pandoc.org/installing.html"
@@ -72,7 +73,11 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
     build_dir.mkdir(parents=True, exist_ok=True)
 
     epub_path = build_dir / f"{book.id}.epub"
+    if log:
+        log(f"📦 Preparing {book.title}")
     if epub_path.exists() and not force:
+        if log:
+            log(f"✅ Using cached {epub_path}")
         return epub_path
 
     css_path = build_dir / "epub.css"
@@ -80,10 +85,16 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
 
     combined_md = _combine_articles(bdir, book)
     md_path = build_dir / f"{book.id}.md"
+    if log:
+        log("📝 Writing EPUB source")
     md_path.write_text(combined_md)
 
+    if log:
+        log("🎨 Generating cover image")
     cover_path = generate_cover(book.title, build_dir, force=force)
 
+    if log:
+        log("🔨 Running pandoc")
     cmd = [
         "pandoc",
         str(md_path),
@@ -100,6 +111,8 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
     if result.returncode != 0:
         raise RuntimeError(f"pandoc failed: {result.stderr.strip()}")
 
+    if log:
+        log(f"✅ Built {epub_path}")
     return epub_path
 
 

@@ -2,7 +2,7 @@ import io
 import pytest
 import shutil
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from PIL import Image
 from readpack.models import Book, ArticleRef
 from readpack.store import save_book
@@ -42,6 +42,23 @@ def test_missing_pandoc_raises(tmp_path, monkeypatch):
     book = _make_book_with_article(tmp_path)
     with pytest.raises(MissingPandoc):
         build_epub(tmp_path, book)
+
+
+def test_build_logs_progress(tmp_path, monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/pandoc")
+    book = _make_book_with_article(tmp_path)
+    logs = []
+    with patch("readpack.build.generate_cover") as mock_cov, \
+         patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")):
+        mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
+        build_epub(tmp_path, book, log=logs.append)
+    assert logs == [
+        "📦 Preparing Test Book",
+        "📝 Writing EPUB source",
+        "🎨 Generating cover image",
+        "🔨 Running pandoc",
+        f"✅ Built {tmp_path / 'books' / 'test-book' / 'build' / 'test-book.epub'}",
+    ]
 
 
 @pytest.mark.skipif(not PANDOC_AVAILABLE, reason="pandoc not installed")
