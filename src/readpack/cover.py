@@ -4,7 +4,7 @@ import os
 import urllib.request
 from pathlib import Path
 
-_URL = "https://openrouter.ai/api/v1/images/generations"
+_URL = "https://openrouter.ai/api/v1/chat/completions"
 _MODEL = "openai/gpt-5.4-image-2"
 
 
@@ -24,10 +24,8 @@ def generate_cover(title: str, out_dir: Path, force: bool = False) -> Path:
 
     payload = json.dumps({
         "model": _MODEL,
-        "prompt": _prompt(title),
-        "n": 1,
-        "size": "1024x1024",
-        "response_format": "b64_json",
+        "messages": [{"role": "user", "content": _prompt(title)}],
+        "modalities": ["image", "text"],
     }).encode()
 
     req = urllib.request.Request(
@@ -41,5 +39,6 @@ def generate_cover(title: str, out_dir: Path, force: bool = False) -> Path:
     with urllib.request.urlopen(req) as resp:
         data = json.loads(resp.read())
 
-    cover_path.write_bytes(base64.b64decode(data["data"][0]["b64_json"]))
+    image = data["choices"][0]["message"]["images"][0]["image_url"]["url"]
+    cover_path.write_bytes(base64.b64decode(image.rsplit(",", 1)[-1]))
     return cover_path

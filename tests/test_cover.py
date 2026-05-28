@@ -17,7 +17,8 @@ def _fake_png() -> bytes:
 
 
 def _mock_urlopen() -> MagicMock:
-    data = {"data": [{"b64_json": base64.b64encode(_fake_png()).decode()}]}
+    image = base64.b64encode(_fake_png()).decode()
+    data = {"choices": [{"message": {"images": [{"image_url": {"url": f"data:image/png;base64,{image}"}}]}}]}
     m = MagicMock()
     m.__enter__ = MagicMock(return_value=m)
     m.__exit__ = MagicMock(return_value=False)
@@ -31,6 +32,17 @@ def test_cover_creates_png(tmp_path, monkeypatch):
         p = generate_cover("AI Development", tmp_path)
     assert p.exists()
     assert p.suffix == ".png"
+
+
+def test_cover_uses_chat_completions(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    with patch("urllib.request.urlopen", return_value=_mock_urlopen()) as mock:
+        generate_cover("AI Development", tmp_path)
+    req = mock.call_args.args[0]
+    payload = json.loads(req.data)
+    assert req.full_url == "https://openrouter.ai/api/v1/chat/completions"
+    assert payload["modalities"] == ["image", "text"]
+    assert payload["messages"][0]["content"].startswith("Elegant ebook cover")
 
 
 def test_cover_cached_skips_api(tmp_path, monkeypatch):
