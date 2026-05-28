@@ -82,7 +82,7 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
     md_path = build_dir / f"{book.id}.md"
     md_path.write_text(combined_md)
 
-    cover_path = generate_cover(book.title, build_dir)
+    cover_path = generate_cover(book.title, build_dir, force=force)
 
     cmd = [
         "pandoc",

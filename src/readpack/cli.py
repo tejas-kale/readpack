@@ -22,7 +22,7 @@ def fetch_and_add(store: Path, title: str, url: str) -> None:
     if book_exists(store, title):
         book = load_book(store, title)
     else:
-        book = Book(id=slugify(title), title=title.title())
+        book = Book(id=slugify(title), title=title)
 
     url_slug = slugify(url.split("//")[-1].split("/")[0] + "-" + url.rstrip("/").split("/")[-1])[:40]
     article_id = next_article_id(book, url_slug)
