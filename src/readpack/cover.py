@@ -11,8 +11,8 @@ _MODEL = "openai/gpt-5.4-image-2"
 def _prompt(title: str) -> str:
     return (
         f'Elegant ebook cover for "{title}". '
-        "Deep blue and purple gradient, abstract geometric light patterns. "
-        "Minimalist, professional. No text in the image."
+        "Include readable title text using the exact title. "
+        "Distinct visual metaphor for the title. Minimalist, professional."
     )
 
 

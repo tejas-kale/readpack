@@ -49,9 +49,10 @@ def test_build_logs_progress(tmp_path, monkeypatch):
     book = _make_book_with_article(tmp_path)
     logs = []
     with patch("readpack.build.generate_cover") as mock_cov, \
-         patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")):
+         patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")) as run:
         mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
         build_epub(tmp_path, book, log=logs.append)
+    assert "--number-sections" not in run.call_args.args[0]
     assert logs == [
         "📦 Preparing Test Book",
         "📝 Writing EPUB source",

@@ -41,8 +41,12 @@ def test_cover_uses_chat_completions(tmp_path, monkeypatch):
     req = mock.call_args.args[0]
     payload = json.loads(req.data)
     assert req.full_url == "https://openrouter.ai/api/v1/chat/completions"
+    prompt = payload["messages"][0]["content"]
     assert payload["modalities"] == ["image", "text"]
-    assert payload["messages"][0]["content"].startswith("Elegant ebook cover")
+    assert prompt.startswith("Elegant ebook cover")
+    assert '"AI Development"' in prompt
+    assert "readable title text" in prompt
+    assert "No text" not in prompt
 
 
 def test_cover_cached_skips_api(tmp_path, monkeypatch):

@@ -100,7 +100,6 @@ def build_epub(store: Path, book: Book, force: bool = False, force_cover: bool =
         str(md_path),
         "-o", str(epub_path),
         "--toc",
-        "--number-sections",
         f"--metadata=title:{book.title}",
         "--metadata=author:Tejas Kale",
         "--metadata=lang:en",
