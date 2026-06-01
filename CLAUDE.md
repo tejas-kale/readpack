@@ -8,7 +8,7 @@ Python CLI: web articles → ePUB → Kindle.
 - **Atomic commits**: one logical change per commit. Tests + implementation in the same commit.
 - **Terse code**: shortest correct solution. No abstraction tax, no premature helpers.
 - **No try-catch**: let errors propagate naturally. Catch only at CLI boundaries (Click handles it).
-- **Emoji logs**: all `click.echo` lines get an emoji prefix (📦 ✅ ❌ 📖 📬 etc.).
+- **Emoji logs**: all `click.echo` lines start with an emoji prefix (📦 ✅ ❌ 📖 📬 etc.). Add informative progress logs around slow steps.
 - **README**: keep `README.md` up to date with every user-facing change (new flags, dependencies, behaviour).
 
 ## Stack

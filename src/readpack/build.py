@@ -1,9 +1,11 @@
 import re
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 from readpack.cover import generate_cover
+from readpack.markdown import dedupe_title_heading
 from readpack.models import Book
 from readpack.paths import book_dir
 
@@ -39,6 +41,7 @@ pre {
     padding: 0.8em 1em;
     overflow-x: auto;
     line-height: 1.4em;
+    white-space: pre-wrap;
 }
 pre code { background: none; padding: 0; }
 blockquote {
@@ -50,7 +53,7 @@ blockquote {
 }
 a { color: #1a5276; text-decoration: underline; }
 img { max-width: 100%; height: auto; display: block; margin: 0.8em auto; }
-table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.85em; }
 th, td { border: 1px solid #ccc; padding: 0.4em 0.6em; text-align: left; }
 th { background-color: #f0f0f0; }
 hr { border: none; border-top: 1px solid #ccc; margin: 2em 0; }
@@ -61,7 +64,7 @@ class MissingPandoc(RuntimeError):
     pass
 
 
-def build_epub(store: Path, book: Book, force: bool = False) -> Path:
+def build_epub(store: Path, book: Book, force: bool = False, force_cover: bool = False, log: Callable[[str], None] | None = None) -> Path:
     if not shutil.which("pandoc"):
         raise MissingPandoc(
             "pandoc not found. Install it from https://pandoc.org/installing.html"
@@ -72,7 +75,11 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
     build_dir.mkdir(parents=True, exist_ok=True)
 
     epub_path = build_dir / f"{book.id}.epub"
-    if epub_path.exists() and not force:
+    if log:
+        log(f"📦 Preparing {book.title}")
+    if epub_path.exists() and not force and _epub_fresh(epub_path, bdir, book):
+        if log:
+            log(f"✅ Using cached {epub_path}")
         return epub_path
 
     css_path = build_dir / "epub.css"
@@ -80,16 +87,22 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
 
     combined_md = _combine_articles(bdir, book)
     md_path = build_dir / f"{book.id}.md"
+    if log:
+        log("📝 Writing EPUB source")
     md_path.write_text(combined_md)
 
-    cover_path = generate_cover(book.title, build_dir, force=force)
+    if log:
+        log("🎨 Generating cover image")
+    cover_path = generate_cover(book.title, build_dir, force=force_cover)
 
+    if log:
+        log("🔨 Running pandoc")
     cmd = [
         "pandoc",
         str(md_path),
         "-o", str(epub_path),
         "--toc",
-        "--number-sections",
+        "--syntax-highlighting=tango",
         f"--metadata=title:{book.title}",
         "--metadata=author:Tejas Kale",
         "--metadata=lang:en",
@@ -100,7 +113,15 @@ def build_epub(store: Path, book: Book, force: bool = False) -> Path:
     if result.returncode != 0:
         raise RuntimeError(f"pandoc failed: {result.stderr.strip()}")
 
+    if log:
+        log(f"✅ Built {epub_path}")
     return epub_path
+
+
+def _epub_fresh(epub_path: Path, bdir: Path, book: Book) -> bool:
+    epub_mtime = epub_path.stat().st_mtime
+    paths = [bdir / "book.json"] + [bdir / a.path / "article.md" for a in book.articles if a.status == "ready"]
+    return all(not p.exists() or p.stat().st_mtime <= epub_mtime for p in paths)
 
 
 def _combine_articles(bdir: Path, book: Book) -> str:
@@ -111,18 +132,26 @@ def _combine_articles(bdir: Path, book: Book) -> str:
         art_dir = bdir / art.path
         md_path = art_dir / "article.md"
         if md_path.exists():
-            content = _rewrite_image_paths(md_path.read_text(), art_dir)
+            content = dedupe_title_heading(_rewrite_image_paths(md_path.read_text(), art_dir), art.title)
             parts.append(content)
             parts.append("\n\n---\n\n")
     return "".join(parts)
 
 
 def _rewrite_image_paths(md: str, art_dir: Path) -> str:
-    def replace(m: re.Match) -> str:
+    def replace_md(m: re.Match) -> str:
         alt, src = m.group(1), m.group(2)
         if src.startswith(("http://", "https://", "/")):
             return m.group(0)
         abs_path = (art_dir / src).resolve()
         return f"![{alt}]({abs_path})"
 
-    return re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", replace, md)
+    def replace_html(m: re.Match) -> str:
+        prefix, quote, src = m.group(1), m.group(2), m.group(3)
+        if src.startswith(("http://", "https://", "/")):
+            return m.group(0)
+        abs_path = (art_dir / src).resolve()
+        return f"{prefix}{quote}{abs_path}{quote}"
+
+    md = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", replace_md, md)
+    return re.sub(r"(src=)([\"'])([^\"']+)\2", replace_html, md)

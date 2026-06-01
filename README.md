@@ -28,10 +28,13 @@ readpack config --init
 - Fetches article HTML.
 - Extracts readable article content with metadata.
 - Stores `source.html`, `article.html`, `article.md`, and `meta.json`.
-- Downloads article images when possible.
+- Downloads article images when possible, including figure images omitted by text extraction.
+- Preserves HTML tables for cleaner EPUB rendering.
+- Adds colour syntax highlighting for fenced code blocks in EPUBs.
 - Normalises Markdown for cleaner EPUB output, including inline code, blockquotes, and footnotes.
-- Generates an AI cover image (`openai/gpt-5.4-image-2` via OpenRouter) on first `build`; cached and reused unless `--force`.
-- Builds styled EPUBs with pandoc.
+- Generates an AI cover image with visible book title text (`openai/gpt-5.4-image-2` via OpenRouter) on first `build`; cached and reused unless `--force-cover`.
+- Shows emoji-prefixed progress logs while building, including cover generation and pandoc steps.
+- Builds styled EPUBs with pandoc, reusing the cached EPUB only when article sources are unchanged.
 - Sends EPUBs to Kindle over SMTP when configured.
 
 ## Store location
@@ -50,13 +53,15 @@ readpack --store /path/to/store list
 ```bash
 readpack --help
 readpack add BOOK URL
-readpack add --force BOOK URL       # re-add duplicate URL
+readpack add --force BOOK URL       # re-fetch and overwrite duplicate URL
 readpack list
 readpack show BOOK
-readpack build BOOK
+readpack build BOOK                 # overwrites stale EPUBs in place
 readpack build --force BOOK         # rebuild existing EPUB
+readpack build --force-cover BOOK   # regenerate cover image
 readpack send BOOK
 readpack send --force-build BOOK
+readpack send --force-cover BOOK
 readpack config
 readpack config --init
 ```
@@ -66,6 +71,8 @@ readpack config --init
 Some sites block non-browser fetches with CAPTCHA or bot-challenge pages. `readpack` rejects these instead of saving empty articles.
 
 If extraction finds no article text, `add` fails rather than storing an `Untitled` zero-word article.
+
+`readpack build` overwrites the local EPUB file for a book. Email delivery to Kindle can still create a separate Personal Document on Amazon's side; delete the older Kindle copy there if needed.
 
 ## Run tests
 

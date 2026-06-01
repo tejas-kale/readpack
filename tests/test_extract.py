@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from readpack.extract import extract_article, ArticlePackage, ExtractionError, _normalise_markdown
+from readpack.extract import extract_article, ArticlePackage, ExtractionError, _add_source_images, _html_to_epub_markdown, _normalise_markdown
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -59,6 +59,13 @@ def test_extract_article_md_has_header(tmp_path):
     md = (tmp_path / "article.md").read_text()
     assert md.startswith("# ")
     assert "https://example.com/article" in md
+
+
+def test_extract_article_md_deduplicates_title_heading(tmp_path):
+    html = (FIXTURES / "simple.html").read_text()
+    extract_article(html, url="https://example.com/article", out_dir=tmp_path)
+    md = (tmp_path / "article.md").read_text()
+    assert md.count("# Simple Test Article") == 1
 
 
 def test_extract_url_shown_as_link_text(tmp_path):
@@ -126,3 +133,50 @@ def test_extract_image_meta_count(tmp_path):
         extract_article(html, url="https://example.com/images", out_dir=tmp_path)
     meta = json.loads((tmp_path / "meta.json").read_text())
     assert meta["image_count"] >= 0  # depends on trafilatura extraction
+
+
+def test_extract_restores_source_figure_images(tmp_path):
+    from unittest.mock import patch
+    from tests.test_assets import _TINY_PNG, _mock_urlopen
+    text = " ".join(["This paragraph has enough article words for extraction quality checks."] * 35)
+    html = f"""<html><head><title>Image Test</title></head><body><article><h1>Image Test</h1><p>{text}</p><figure><image alt="diagram" src="/diagram.png" width="600" height="400" /></figure></article></body></html>"""
+    with patch("urllib.request.urlopen", return_value=_mock_urlopen(_TINY_PNG)):
+        extract_article(html, url="https://example.com/post", out_dir=tmp_path)
+    md = (tmp_path / "article.md").read_text()
+    assert "assets/" in md
+    assert "diagram" in md
+
+
+def test_extract_preserves_tables_and_code_languages(tmp_path):
+    text = " ".join(["This paragraph has enough article words for extraction quality checks."] * 35)
+    html = f"""<html><head><title>Render Test</title></head><body><article><h1>Render Test</h1><p>{text}</p><table><tr><th>Name</th><th>Role</th></tr><tr><td><code>tool</code></td><td>Review</td></tr></table><pre class="language-typescript"><code>const x = 1;</code></pre></article></body></html>"""
+    extract_article(html, url="https://example.com/render", out_dir=tmp_path)
+    md = (tmp_path / "article.md").read_text()
+    assert "<table" in md
+    assert "<tr" in md
+    assert "<td" in md
+    assert "```typescript" in md
+
+
+def test_html_to_epub_markdown_keeps_inline_code_inline():
+    md = _html_to_epub_markdown("<p>Use <pre>ReviewPlugin</pre> with <pre>stdin</pre> safely.</p>")
+    assert md == "Use `ReviewPlugin` with `stdin` safely."
+
+
+def test_html_to_epub_markdown_normalises_tables():
+    html = "<table><row><cell role='head'><p>Name</p></cell></row><row><cell><p></p><pre>tool</pre></cell></row></table>"
+    md = _html_to_epub_markdown(html)
+    assert "<tr" in md
+    assert "<th" in md
+    assert "<td" in md
+    assert "<row" not in md
+    assert "<cell" not in md
+    assert "<code>tool</code>" in md
+
+
+def test_add_source_images_keeps_missing_article_figures():
+    body = '<p><img src="/icon.png" alt="icon" /></p>'
+    html = '<article><p>Text</p><img src="/icon.png" width="64" height="64" /><figure><image src="/diagram.png" alt="diagram" width="800" height="600" /></figure></article>'
+    result = _add_source_images(body, html)
+    assert "/icon.png" in result
+    assert "/diagram.png" in result
