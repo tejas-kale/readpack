@@ -1,4 +1,5 @@
 import io
+import os
 import pytest
 import shutil
 from pathlib import Path
@@ -71,6 +72,21 @@ def test_force_rebuild_reuses_cover(tmp_path, monkeypatch):
         mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
         build_epub(tmp_path, book, force=True)
     assert mock_cov.call_args.kwargs["force"] is False
+
+
+def test_build_rebuilds_when_article_newer_than_epub(tmp_path, monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/pandoc")
+    book = _make_book_with_article(tmp_path)
+    epub = tmp_path / "books" / "test-book" / "build" / "test-book.epub"
+    epub.parent.mkdir(parents=True)
+    epub.write_bytes(b"old")
+    os.utime(epub, (1_700_000_000, 1_700_000_000))
+    os.utime(tmp_path / "books" / "test-book" / "articles" / "001-simple" / "article.md", (1_700_000_010, 1_700_000_010))
+    with patch("readpack.build.generate_cover") as mock_cov, \
+         patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")) as run:
+        mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
+        build_epub(tmp_path, book)
+    run.assert_called_once()
 
 
 def test_force_cover_regenerates_cover(tmp_path, monkeypatch):

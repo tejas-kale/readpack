@@ -77,7 +77,7 @@ def build_epub(store: Path, book: Book, force: bool = False, force_cover: bool =
     epub_path = build_dir / f"{book.id}.epub"
     if log:
         log(f"📦 Preparing {book.title}")
-    if epub_path.exists() and not force:
+    if epub_path.exists() and not force and _epub_fresh(epub_path, bdir, book):
         if log:
             log(f"✅ Using cached {epub_path}")
         return epub_path
@@ -116,6 +116,12 @@ def build_epub(store: Path, book: Book, force: bool = False, force_cover: bool =
     if log:
         log(f"✅ Built {epub_path}")
     return epub_path
+
+
+def _epub_fresh(epub_path: Path, bdir: Path, book: Book) -> bool:
+    epub_mtime = epub_path.stat().st_mtime
+    paths = [bdir / "book.json"] + [bdir / a.path / "article.md" for a in book.articles if a.status == "ready"]
+    return all(not p.exists() or p.stat().st_mtime <= epub_mtime for p in paths)
 
 
 def _combine_articles(bdir: Path, book: Book) -> str:
