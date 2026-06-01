@@ -1,5 +1,6 @@
 import json
 import re
+import textwrap
 from dataclasses import dataclass, field
 from html import escape
 from datetime import datetime, timezone
@@ -125,21 +126,20 @@ def _rich_html(html: str) -> bool:
 
 
 def _add_source_images(body: str, html: str) -> str:
-    if BeautifulSoup(body, "lxml").find(["img", "image"]):
-        return body
+    seen = {img.get("src", "") for img in BeautifulSoup(body, "lxml").find_all(["img", "image"])}
     soup = BeautifulSoup(html, "lxml")
     root = soup.find("article") or soup.body or soup
-    imgs = root.select("figure img, figure image") or root.find_all(["img", "image"])
     parts = []
-    for img in imgs:
+    for img in root.find_all(["img", "image"]):
         src = img.get("src", "")
         w, h = img.get("width", ""), img.get("height", "")
-        if not src or src.startswith("data:"):
+        if not src or src.startswith("data:") or src in seen:
             continue
         if img.name == "img" and w.isdigit() and h.isdigit() and max(int(w), int(h)) <= 128:
             continue
         alt = img.get("alt", "")
         parts.append(f'<p><img src="{escape(src, quote=True)}" alt="{escape(alt, quote=True)}" /></p>')
+        seen.add(src)
     return body + "\n" + "\n".join(parts) if parts else body
 
 
@@ -162,7 +162,8 @@ def _restore_code_languages(body: str, html: str) -> str:
 
 def _html_to_epub_markdown(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
-    return "\n\n".join(x for x in (_node_to_md(c) for c in soup.children) if x).strip()
+    md = "\n\n".join(x for x in (_node_to_md(c) for c in soup.children) if x).strip()
+    return _compact_inline_code(md)
 
 
 def _node_to_md(node) -> str:
@@ -170,17 +171,69 @@ def _node_to_md(node) -> str:
         return str(node).strip()
     if node.name in {"html", "body", "div", "section", "article", "blockquote"}:
         return "\n\n".join(x for x in (_node_to_md(c) for c in node.children) if x)
-    if node.name == "p" and any(_code_lang(pre) for pre in node.find_all("pre")):
-        return "\n\n".join(x for x in (_node_to_md(c) for c in node.children) if x)
+    if node.name == "p":
+        return _inline_md(node)
+    if node.name == "table":
+        return _table_html(node)
+    if node.name in {"h1", "h2", "h3", "h4", "h5", "h6"}:
+        return f"{'#' * int(node.name[1])} {node.get_text(' ', strip=True)}"
+    if node.name in {"img", "image"}:
+        return f"![{node.get('alt', '')}]({node.get('src', '')})"
     if node.name == "pre":
         code = node.find("code")
         lang = _code_lang(node)
-        text = (code or node).get_text().rstrip()
+        text = textwrap.dedent((code or node).get_text()).strip("\n")
         if not lang:
             return f"`{text}`" if "\n" not in text else f"<pre><code>{escape(text)}</code></pre>"
         fence = "````" if "```" in text else "```"
         return f"{fence}{lang}\n{text}\n{fence}"
-    return str(node)
+    return _inline_md(node)
+
+
+def _inline_md(node) -> str:
+    parts = []
+    for child in node.children:
+        if isinstance(child, NavigableString):
+            parts.append(str(child))
+        elif child.name == "pre" and not _code_lang(child):
+            parts.append(f"`{child.get_text(strip=True)}`")
+        elif child.name == "code":
+            parts.append(f"`{child.get_text(strip=True)}`")
+        elif child.name in {"strong", "b"}:
+            parts.append(f"**{_inline_md(child)}**")
+        elif child.name in {"em", "i"}:
+            parts.append(f"*{_inline_md(child)}*")
+        elif child.name == "a" and child.get("href"):
+            parts.append(f"[{_inline_md(child)}]({child['href']})")
+        elif child.name == "br":
+            parts.append("\n")
+        else:
+            parts.append(_node_to_md(child))
+    return re.sub(r"[ \t\n]+", " ", "".join(parts)).strip()
+
+
+def _table_html(node) -> str:
+    soup = BeautifulSoup(str(node), "lxml")
+    table = soup.find("table")
+    for row in table.find_all("row"):
+        row.name = "tr"
+    for cell in table.find_all("cell"):
+        cell.name = "th" if cell.get("role") == "head" else "td"
+        cell.attrs.pop("role", None)
+    for pre in table.find_all("pre"):
+        if not _code_lang(pre) and "\n" not in pre.get_text():
+            code = soup.new_tag("code")
+            code.string = pre.get_text(strip=True)
+            pre.replace_with(code)
+    return str(table)
+
+
+def _compact_inline_code(md: str) -> str:
+    old = ""
+    while old != md:
+        old = md
+        md = re.sub(r"(?<=[^\n.!?])\n\n(`[^`\n]+`)\n\n(?=[a-z,.;:!?])", r" \1 ", md)
+    return md
 
 
 def _code_lang(node) -> str:

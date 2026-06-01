@@ -77,7 +77,9 @@ def test_add_duplicate_url_rejected(tmp_path):
     mock_add.assert_not_called()
 
 
-def test_add_with_force_allows_duplicate(tmp_path):
+def test_add_with_force_overwrites_duplicate(tmp_path):
+    from readpack.extract import ArticlePackage
+    from readpack.store import load_book
     book = Book(id="my-book", title="My Book")
     ref = ArticleRef(
         id="001-example",
@@ -89,10 +91,15 @@ def test_add_with_force_allows_duplicate(tmp_path):
     book.articles.append(ref)
     save_book(tmp_path, book)
 
-    with patch("readpack.cli.fetch_and_add") as mock_add:
-        mock_add.return_value = None
+    with patch("readpack.cli.fetch_html", return_value="<html></html>"), \
+         patch("readpack.cli.extract_article", return_value=ArticlePackage("https://example.com/article", "Updated", "A", "2024", 10)) as mock_extract:
         code, out = run(["add", "--force", "My Book", "https://example.com/article"], tmp_path)
-    mock_add.assert_called_once()
+    loaded = load_book(tmp_path, "My Book")
+    assert code == 0
+    assert len(loaded.articles) == 1
+    assert loaded.articles[0].id == "001-example"
+    assert loaded.articles[0].title == "Updated"
+    assert mock_extract.call_args.kwargs["out_dir"] == tmp_path / "books" / "my-book" / "articles" / "001-example"
 
 
 def test_config_init_creates_file(tmp_path, monkeypatch):

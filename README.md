@@ -53,7 +53,7 @@ readpack --store /path/to/store list
 ```bash
 readpack --help
 readpack add BOOK URL
-readpack add --force BOOK URL       # re-add duplicate URL
+readpack add --force BOOK URL       # re-fetch and overwrite duplicate URL
 readpack list
 readpack show BOOK
 readpack build BOOK                 # overwrites stale EPUBs in place

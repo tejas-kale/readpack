@@ -18,30 +18,27 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def fetch_and_add(store: Path, title: str, url: str) -> None:
+def fetch_and_add(store: Path, title: str, url: str, force: bool = False) -> None:
     if book_exists(store, title):
         book = load_book(store, title)
     else:
         book = Book(id=slugify(title), title=title)
 
+    old = next((a for a in book.articles if a.url == url), None) if force else None
     url_slug = slugify(url.split("//")[-1].split("/")[0] + "-" + url.rstrip("/").split("/")[-1])[:40]
-    article_id = next_article_id(book, url_slug)
+    article_id = old.id if old else next_article_id(book, url_slug)
     art_dir = store / "books" / slugify(title) / "articles" / article_id
 
     html = fetch_html(url)
     pkg = extract_article(html, url=url, out_dir=art_dir)
 
-    ref = ArticleRef(
-        id=article_id,
-        url=url,
-        title=pkg.title,
-        author=pkg.author,
-        published_at=pkg.published_at,
-        added_at=_now(),
-        path=f"articles/{article_id}",
-        status="ready",
-    )
-    book.articles.append(ref)
+    ref = old or ArticleRef(id=article_id, url=url, title="", path=f"articles/{article_id}", status="ready")
+    ref.title = pkg.title
+    ref.author = pkg.author
+    ref.published_at = pkg.published_at
+    ref.status = "ready"
+    if not old:
+        book.articles.append(ref)
     book.updated_at = _now()
     save_book(store, book)
     click.echo(f"✅ Added: {pkg.title}")
@@ -113,7 +110,7 @@ def cmd_add(ctx: click.Context, book: str, url: str, force: bool) -> None:
         if has_url(b, url) and not force:
             raise click.ClickException("URL already in book. Use --force to re-add.")
     try:
-        fetch_and_add(store, book, url)
+        fetch_and_add(store, book, url, force=force)
     except Exception as e:
         raise click.ClickException(str(e)) from e
 

@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from readpack.extract import extract_article, ArticlePackage, ExtractionError, _normalise_markdown
+from readpack.extract import extract_article, ArticlePackage, ExtractionError, _add_source_images, _html_to_epub_markdown, _normalise_markdown
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -153,4 +153,30 @@ def test_extract_preserves_tables_and_code_languages(tmp_path):
     extract_article(html, url="https://example.com/render", out_dir=tmp_path)
     md = (tmp_path / "article.md").read_text()
     assert "<table" in md
+    assert "<tr" in md
+    assert "<td" in md
     assert "```typescript" in md
+
+
+def test_html_to_epub_markdown_keeps_inline_code_inline():
+    md = _html_to_epub_markdown("<p>Use <pre>ReviewPlugin</pre> with <pre>stdin</pre> safely.</p>")
+    assert md == "Use `ReviewPlugin` with `stdin` safely."
+
+
+def test_html_to_epub_markdown_normalises_tables():
+    html = "<table><row><cell role='head'><p>Name</p></cell></row><row><cell><p></p><pre>tool</pre></cell></row></table>"
+    md = _html_to_epub_markdown(html)
+    assert "<tr" in md
+    assert "<th" in md
+    assert "<td" in md
+    assert "<row" not in md
+    assert "<cell" not in md
+    assert "<code>tool</code>" in md
+
+
+def test_add_source_images_keeps_missing_article_figures():
+    body = '<p><img src="/icon.png" alt="icon" /></p>'
+    html = '<article><p>Text</p><img src="/icon.png" width="64" height="64" /><figure><image src="/diagram.png" alt="diagram" width="800" height="600" /></figure></article>'
+    result = _add_source_images(body, html)
+    assert "/icon.png" in result
+    assert "/diagram.png" in result
