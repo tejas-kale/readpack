@@ -112,3 +112,13 @@ def test_build_combined_md_has_all_articles(tmp_path):
     assert md_files
     combined = md_files[0].read_text()
     assert "Simple Test Article" in combined
+
+
+@pytest.mark.skipif(not PANDOC_AVAILABLE, reason="pandoc not installed")
+def test_build_combined_md_deduplicates_article_heading(tmp_path):
+    book = _make_book_with_article(tmp_path)
+    with patch("readpack.build.generate_cover") as mock_cov:
+        mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
+        build_epub(tmp_path, book)
+    combined = (tmp_path / "books" / "test-book" / "build" / "test-book.md").read_text()
+    assert combined.count("# Simple Test Article") == 1

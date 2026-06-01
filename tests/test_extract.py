@@ -61,6 +61,13 @@ def test_extract_article_md_has_header(tmp_path):
     assert "https://example.com/article" in md
 
 
+def test_extract_article_md_deduplicates_title_heading(tmp_path):
+    html = (FIXTURES / "simple.html").read_text()
+    extract_article(html, url="https://example.com/article", out_dir=tmp_path)
+    md = (tmp_path / "article.md").read_text()
+    assert md.count("# Simple Test Article") == 1
+
+
 def test_extract_url_shown_as_link_text(tmp_path):
     html = (FIXTURES / "simple.html").read_text()
     extract_article(html, url="https://example.com/article", out_dir=tmp_path)

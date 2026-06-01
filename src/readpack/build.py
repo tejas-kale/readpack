@@ -5,6 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from readpack.cover import generate_cover
+from readpack.markdown import dedupe_title_heading
 from readpack.models import Book
 from readpack.paths import book_dir
 
@@ -123,7 +124,7 @@ def _combine_articles(bdir: Path, book: Book) -> str:
         art_dir = bdir / art.path
         md_path = art_dir / "article.md"
         if md_path.exists():
-            content = _rewrite_image_paths(md_path.read_text(), art_dir)
+            content = dedupe_title_heading(_rewrite_image_paths(md_path.read_text(), art_dir), art.title)
             parts.append(content)
             parts.append("\n\n---\n\n")
     return "".join(parts)

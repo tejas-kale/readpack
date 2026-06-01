@@ -8,6 +8,7 @@ import trafilatura
 from bs4 import BeautifulSoup, NavigableString
 
 from readpack.assets import process_images
+from readpack.markdown import dedupe_title_heading
 
 
 
@@ -78,7 +79,7 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
     clean_html = _build_article_html(title, author, published_at, url, body_html)
     (out_dir / "article.html").write_text(clean_html)
 
-    md = _build_article_md(title, author, published_at, url, body_md)
+    md = dedupe_title_heading(_build_article_md(title, author, published_at, url, body_md), title)
     (out_dir / "article.md").write_text(md)
 
     pkg = ArticlePackage(
