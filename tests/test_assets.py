@@ -31,6 +31,15 @@ def test_process_images_downloads_and_rewrites(tmp_path):
     assert (tmp_path / "assets" / assets[0]["filename"]).exists()
 
 
+def test_process_images_downloads_image_tags(tmp_path):
+    html = '<image src="https://example.com/img.png" alt="test" />'
+    with patch("urllib.request.urlopen", return_value=_mock_urlopen(_TINY_PNG)):
+        new_html, _, assets = process_images(html, "", "https://example.com", tmp_path)
+    assert "<img" in new_html
+    assert "assets/" in new_html
+    assert len(assets) == 1
+
+
 def test_process_images_skips_data_url(tmp_path):
     html = '<img src="data:image/png;base64,abc" alt="inline">'
     md = ""

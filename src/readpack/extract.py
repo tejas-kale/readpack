@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import dataclass, field
+from html import escape
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -59,6 +60,9 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
         url=url,
         output_format="html",
         include_tables=True,
+        include_images=True,
+        include_formatting=True,
+        include_links=True,
         include_comments=False,
         favor_precision=True,
     ) or f"<p>{body_text}</p>"
@@ -73,9 +77,9 @@ def extract_article(html: str, url: str, out_dir: Path) -> ArticlePackage:
     ) or body_text
 
     body_html, body_md, image_assets = process_images(
-        body_html_raw, body_md_raw, url, out_dir
+        _add_source_images(_restore_code_languages(body_html_raw, html), html), body_md_raw, url, out_dir
     )
-    body_md = _normalise_markdown(body_md, html)
+    body_md = _html_to_epub_markdown(body_html) if _rich_html(body_html) else _normalise_markdown(body_md, html)
     clean_html = _build_article_html(title, author, published_at, url, body_html)
     (out_dir / "article.html").write_text(clean_html)
 
@@ -113,6 +117,76 @@ def _extract_title_fallback(html: str) -> str:
     soup = BeautifulSoup(html, "lxml")
     tag = soup.find("title") or soup.find("h1")
     return tag.get_text(strip=True) if tag else "Untitled"
+
+
+def _rich_html(html: str) -> bool:
+    soup = BeautifulSoup(html, "lxml")
+    return bool(soup.find(["table", "pre", "img", "image"]))
+
+
+def _add_source_images(body: str, html: str) -> str:
+    if BeautifulSoup(body, "lxml").find(["img", "image"]):
+        return body
+    soup = BeautifulSoup(html, "lxml")
+    root = soup.find("article") or soup.body or soup
+    imgs = root.select("figure img, figure image") or root.find_all(["img", "image"])
+    parts = []
+    for img in imgs:
+        src = img.get("src", "")
+        w, h = img.get("width", ""), img.get("height", "")
+        if not src or src.startswith("data:"):
+            continue
+        if img.name == "img" and w.isdigit() and h.isdigit() and max(int(w), int(h)) <= 128:
+            continue
+        alt = img.get("alt", "")
+        parts.append(f'<p><img src="{escape(src, quote=True)}" alt="{escape(alt, quote=True)}" /></p>')
+    return body + "\n" + "\n".join(parts) if parts else body
+
+
+def _restore_code_languages(body: str, html: str) -> str:
+    soup = BeautifulSoup(body, "lxml")
+    src = []
+    for pre in BeautifulSoup(html, "lxml").find_all("pre"):
+        lang = _code_lang(pre)
+        if lang:
+            src.append((pre.get_text(" ", strip=True), lang))
+    for pre in soup.find_all("pre"):
+        if _code_lang(pre):
+            continue
+        text = pre.get_text(" ", strip=True)
+        lang = next((lang for old, lang in src if text and (text == old or old in text or len(text) > 40 and text in old)), "")
+        if lang:
+            pre["class"] = [f"language-{lang}"]
+    return str(soup)
+
+
+def _html_to_epub_markdown(html: str) -> str:
+    soup = BeautifulSoup(html, "lxml")
+    return "\n\n".join(x for x in (_node_to_md(c) for c in soup.children) if x).strip()
+
+
+def _node_to_md(node) -> str:
+    if isinstance(node, NavigableString):
+        return str(node).strip()
+    if node.name in {"html", "body", "div", "section", "article", "blockquote"}:
+        return "\n\n".join(x for x in (_node_to_md(c) for c in node.children) if x)
+    if node.name == "p" and any(_code_lang(pre) for pre in node.find_all("pre")):
+        return "\n\n".join(x for x in (_node_to_md(c) for c in node.children) if x)
+    if node.name == "pre":
+        code = node.find("code")
+        lang = _code_lang(node)
+        text = (code or node).get_text().rstrip()
+        if not lang:
+            return f"`{text}`" if "\n" not in text else f"<pre><code>{escape(text)}</code></pre>"
+        fence = "````" if "```" in text else "```"
+        return f"{fence}{lang}\n{text}\n{fence}"
+    return str(node)
+
+
+def _code_lang(node) -> str:
+    code = node.find("code") if hasattr(node, "find") else None
+    classes = node.get("class", []) + (code.get("class", []) if code else [])
+    return next((c.split("-", 1)[1].lower() for c in classes if c.lower().startswith("language-")), "")
 
 
 def _normalise_markdown(md: str, html: str = "") -> str:

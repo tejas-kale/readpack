@@ -41,6 +41,7 @@ pre {
     padding: 0.8em 1em;
     overflow-x: auto;
     line-height: 1.4em;
+    white-space: pre-wrap;
 }
 pre code { background: none; padding: 0; }
 blockquote {
@@ -52,7 +53,7 @@ blockquote {
 }
 a { color: #1a5276; text-decoration: underline; }
 img { max-width: 100%; height: auto; display: block; margin: 0.8em auto; }
-table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+table { width: 100%; border-collapse: collapse; margin: 1em 0; font-size: 0.85em; }
 th, td { border: 1px solid #ccc; padding: 0.4em 0.6em; text-align: left; }
 th { background-color: #f0f0f0; }
 hr { border: none; border-top: 1px solid #ccc; margin: 2em 0; }
@@ -101,6 +102,7 @@ def build_epub(store: Path, book: Book, force: bool = False, force_cover: bool =
         str(md_path),
         "-o", str(epub_path),
         "--toc",
+        "--syntax-highlighting=tango",
         f"--metadata=title:{book.title}",
         "--metadata=author:Tejas Kale",
         "--metadata=lang:en",
@@ -131,11 +133,19 @@ def _combine_articles(bdir: Path, book: Book) -> str:
 
 
 def _rewrite_image_paths(md: str, art_dir: Path) -> str:
-    def replace(m: re.Match) -> str:
+    def replace_md(m: re.Match) -> str:
         alt, src = m.group(1), m.group(2)
         if src.startswith(("http://", "https://", "/")):
             return m.group(0)
         abs_path = (art_dir / src).resolve()
         return f"![{alt}]({abs_path})"
 
-    return re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", replace, md)
+    def replace_html(m: re.Match) -> str:
+        prefix, quote, src = m.group(1), m.group(2), m.group(3)
+        if src.startswith(("http://", "https://", "/")):
+            return m.group(0)
+        abs_path = (art_dir / src).resolve()
+        return f"{prefix}{quote}{abs_path}{quote}"
+
+    md = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", replace_md, md)
+    return re.sub(r"(src=)([\"'])([^\"']+)\2", replace_html, md)

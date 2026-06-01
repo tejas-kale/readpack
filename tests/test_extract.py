@@ -133,3 +133,24 @@ def test_extract_image_meta_count(tmp_path):
         extract_article(html, url="https://example.com/images", out_dir=tmp_path)
     meta = json.loads((tmp_path / "meta.json").read_text())
     assert meta["image_count"] >= 0  # depends on trafilatura extraction
+
+
+def test_extract_restores_source_figure_images(tmp_path):
+    from unittest.mock import patch
+    from tests.test_assets import _TINY_PNG, _mock_urlopen
+    text = " ".join(["This paragraph has enough article words for extraction quality checks."] * 35)
+    html = f"""<html><head><title>Image Test</title></head><body><article><h1>Image Test</h1><p>{text}</p><figure><image alt="diagram" src="/diagram.png" width="600" height="400" /></figure></article></body></html>"""
+    with patch("urllib.request.urlopen", return_value=_mock_urlopen(_TINY_PNG)):
+        extract_article(html, url="https://example.com/post", out_dir=tmp_path)
+    md = (tmp_path / "article.md").read_text()
+    assert "assets/" in md
+    assert "diagram" in md
+
+
+def test_extract_preserves_tables_and_code_languages(tmp_path):
+    text = " ".join(["This paragraph has enough article words for extraction quality checks."] * 35)
+    html = f"""<html><head><title>Render Test</title></head><body><article><h1>Render Test</h1><p>{text}</p><table><tr><th>Name</th><th>Role</th></tr><tr><td><code>tool</code></td><td>Review</td></tr></table><pre class="language-typescript"><code>const x = 1;</code></pre></article></body></html>"""
+    extract_article(html, url="https://example.com/render", out_dir=tmp_path)
+    md = (tmp_path / "article.md").read_text()
+    assert "<table" in md
+    assert "```typescript" in md

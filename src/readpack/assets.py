@@ -24,7 +24,8 @@ def process_images(
     assets: list[dict] = []
     url_to_local: dict[str, str] = {}
 
-    for img in soup.find_all("img"):
+    for img in soup.find_all(["img", "image"]):
+        img.name = "img"
         src = img.get("src", "")
         if not src or src.startswith("data:"):
             continue

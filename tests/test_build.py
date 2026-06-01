@@ -53,6 +53,7 @@ def test_build_logs_progress(tmp_path, monkeypatch):
         mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
         build_epub(tmp_path, book, log=logs.append)
     assert "--number-sections" not in run.call_args.args[0]
+    assert "--syntax-highlighting=tango" in run.call_args.args[0]
     assert logs == [
         "📦 Preparing Test Book",
         "📝 Writing EPUB source",
@@ -122,3 +123,20 @@ def test_build_combined_md_deduplicates_article_heading(tmp_path):
         build_epub(tmp_path, book)
     combined = (tmp_path / "books" / "test-book" / "build" / "test-book.md").read_text()
     assert combined.count("# Simple Test Article") == 1
+
+
+def test_build_rewrites_html_image_paths(tmp_path, monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/pandoc")
+    book = Book(id="test-book", title="Test Book")
+    art_dir = tmp_path / "books" / "test-book" / "articles" / "001-img"
+    assets = art_dir / "assets"
+    assets.mkdir(parents=True)
+    (assets / "pic.png").write_bytes(b"x")
+    (art_dir / "article.md").write_text('# Pic\n\n<p><img src="assets/pic.png" alt="pic" /></p>')
+    book.articles.append(ArticleRef(id="001-img", url="u", title="Pic", path="articles/001-img", status="ready"))
+    with patch("readpack.build.generate_cover") as mock_cov, \
+         patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")):
+        mock_cov.side_effect = lambda title, out_dir, force=False: _tiny_cover(out_dir)
+        build_epub(tmp_path, book)
+    combined = (tmp_path / "books" / "test-book" / "build" / "test-book.md").read_text()
+    assert str(assets / "pic.png") in combined
